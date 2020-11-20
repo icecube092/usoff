@@ -37,7 +37,13 @@ def get_token(username: str, salt: str) -> str:
     ).decode()
 
 
-def check_token(token, salt):
+def check_token(token: str, salt: str) -> bool:
+    """
+    проверка истечения токена
+    :param token: токен
+    :param salt: соль
+    :return: истек или нет
+    """
     try:
         dec_token = jwt.decode(token, salt)
     except jwt.exceptions.DecodeError:
