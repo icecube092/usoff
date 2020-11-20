@@ -1,11 +1,11 @@
 import configparser
+import datetime
 import hashlib
-import json
 
-import jwt
 from sanic import response
 from sanic.request import Request
 
+import lib.util as util
 from lib.db import Database
 
 config = configparser.ConfigParser()
@@ -17,8 +17,6 @@ class Handler:
     """
     обработчик запросов по путям /users
     """
-    salt = "fkcxs213mzxl23lasd"  # соль для ключей
-
     def __init__(self):
         self.db = Database(config=db)
 
@@ -28,7 +26,7 @@ class Handler:
         :param request: запрос
         :return: json-ответ
         """
-        body = await self.decode_body(request.body)
+        body = await util.decode_body(request.body)
         if not body:
             return response.json(body={"error": "json decode error"}, status=400)
         username = body.get("username")
@@ -37,19 +35,19 @@ class Handler:
         if not username or not password or not email:
             return response.json({"error": "username, password, email required"}, status=400)
 
-        enc_password = hashlib.md5(body.get("password") + self.salt).hexdigest()
+        enc_password = hashlib.md5(str(body.get("password") + util.salt).encode()).hexdigest()
         with self.db:
             self.db.cur.execute(
                 """
-                SELECT * FROM users WHERE username = '%s' OR email = '%s"
-                """ % username, email
+                SELECT * FROM users WHERE username = '%s' OR email = '%s'
+                """ % (username, email)
             )
             if not self.db.cur.fetchone():
                 self.db.cur.execute(
                     """
                     INSERT INTO users (username, password, email)
                     VALUES ('%s', '%s', '%s')
-                    """ % username, enc_password, email
+                    """ % (username, enc_password, email)
                 )
             else:
                 return response.json({"error": "username or email busy"}, status=400)
@@ -61,7 +59,7 @@ class Handler:
         :param request: запрос
         :return: json-ответ
         """
-        body = await self.decode_body(request.body)
+        body = await util.decode_body(request.body)
         if not body:
             return response.json(body={"error": "json decode error"}, status=400)
         username = body.get("username")
@@ -69,31 +67,46 @@ class Handler:
         if not username or not password:
             return response.json({"error": "username, password required"}, status=401)
 
-        enc_password = hashlib.md5(body.get("password") + self.salt).hexdigest()
+        enc_password = hashlib.md5(str(body.get("password") + util.salt).encode()).hexdigest()
         with self.db:
             self.db.cur.execute(
                 """
                 SELECT * FROM users WHERE username= '%s' AND password = '%s'
-                """ % username, enc_password
+                """ % (username, enc_password)
             )
             user_data = self.db.cur.fetchone()
             if not user_data:
                 return response.json({"error": "user not found"}, status=401)
             else:
-                token = jwt.encode({"username": username, "password": enc_password}, self.salt)
-                return response.json({"error": "", "token": token})
+                token = util.get_token(username, util.salt)
+                self.db.cur.execute(
+                    """
+                    INSERT INTO tokens (token, user_id)
+                    VALUES ('%s', '%s')
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET token = '%s' WHERE user_id = '%s'
+                    """ % (token, user_data[0], token, user_data[0])
+                )
+                return response.json(
+                    {"error": "", "token": token}, headers={"Authorization": token}, status=201)
 
     async def get_user(self, request: Request, user_id: int) -> response.HTTPResponse:
         """
-        получение данных пользователя,GET-запрос
+        получение данных пользователя, GET-запрос
         :param request: запрос
         :param user_id: айди пользователя в базе
         :return: json-ответ
         """
+        token = request.headers.get("authorization")
+        if not token:
+            return response.json({"error": "no token"}, status=400)
+        else:
+            if not util.check_token(token, util.salt):
+                return response.json({"error": "token expired or not exists"}, status=400)
         with self.db:
             self.db.cur.execute(
                 """
-                SELECT username, password, email FROM users WHERE user_id = %s
+                SELECT username, password, email FROM users WHERE id = %s
                 """ % user_id
             )
             user_data = self.db.cur.fetchone()
@@ -102,20 +115,12 @@ class Handler:
             else:
                 self.db.cur.execute(
                     """
-                    SELECT title, offer_text, created FROM offers WHERE user_id = '%s' ORDER BY created
+                    SELECT title, offer_text, created FROM offers WHERE user_id = '%s' 
+                    ORDER BY created DESC
                     """ % user_id
                 )
-                offers = self.db.cur.fetchall()
+                offers = []
+                for offer in self.db.cur.fetchall():
+                    offers.append([offer[0], offer[1],
+                                   datetime.datetime.strftime(offer[2], "%Y-%m-%d %H:%M:%S")])
         return response.json({"error": "", "data": user_data, "offers": offers})
-
-    async def decode_body(self, body: Request.body) -> dict:
-        """
-        декодирование запроса
-        :param body: тело запроса
-        :return: словарь тела запроса
-        """
-        try:
-            body = json.loads(body)
-        except json.JSONDecodeError:
-            body = {}
-        return body

@@ -5,7 +5,7 @@ from sanic import Sanic
 from offers.handler import Handler
 
 config = configparser.ConfigParser()
-config.read("offers/config.ini")
+config.read("config.ini")
 server = config["server"]
 
 

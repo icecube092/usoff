@@ -1,14 +1,14 @@
 import configparser
 import datetime
-import json
 
 from sanic import response
 from sanic.request import Request
 
+import lib.util as util
 from lib.db import Database
 
 config = configparser.ConfigParser()
-config.read("offers/config.ini")
+config.read("config.ini")
 db = config["db"]
 
 
@@ -25,7 +25,14 @@ class Handler:
         :param request: запрос
         :return: json-ответ
         """
-        body = await self.decode_body(request.body)
+        token = request.headers.get("authorization")
+        if not token:
+            return response.json({"error": "no token"}, status=400)
+        else:
+            if not util.check_token(token, util.salt):
+                return response.json({"error": "token expired or not exists"}, status=400)
+        body = await util.decode_body(request.body)
+        now = datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d %H:%M:%S")
         user_id = body.get("user_id")
         title = body.get("title")
         text = body.get("text")
@@ -34,7 +41,7 @@ class Handler:
         with self.db:
             self.db.cur.execute(
                 """
-                SELECT * FROM users WHERE user_id = %s
+                SELECT * FROM users WHERE id = %s
                 """ % user_id
             )
             if not self.db.cur.fetchone():
@@ -43,7 +50,7 @@ class Handler:
                 """
                 INSERT INTO offers (title, offer_text, created, user_id)
                 VALUES ('%s', '%s', '%s', %s)
-                """ % title, text, datetime.datetime.now().timestamp(), user_id
+                """ % (title, text, now, user_id)
             )
         return response.json({"error": ""}, status=201)
 
@@ -53,7 +60,13 @@ class Handler:
         :param request: запрос
         :return: json-ответ
         """
-        body = await self.decode_body(request.body)
+        token = request.headers.get("authorization")
+        if not token:
+            return response.json({"error": "no token"}, status=400)
+        else:
+            if not util.check_token(token, util.salt):
+                return response.json({"error": "token expired or not exists"}, status=400)
+        body = await util.decode_body(request.body)
         user_id = body.get("user_id")
         offer_id = body.get("offer_id")
         if offer_id:
@@ -69,7 +82,7 @@ class Handler:
             with self.db:
                 self.db.cur.execute(
                     """
-                    SELECT * FROM users WHERE user_id = %s
+                    SELECT * FROM users WHERE id = %s
                     """ % user_id
                 )
                 if not self.db.cur.fetchone():
@@ -83,15 +96,3 @@ class Handler:
             return response.json({"error": "", "offers": offers}, status=201)
         else:
             return response.json({"error": "user_id or offer id required"}, status=400)
-
-    async def decode_body(self, body: Request.body) -> dict:
-        """
-        декодирование запроса
-        :param body: тело запроса
-        :return: словарь тела запроса
-        """
-        try:
-            body = json.loads(body)
-        except json.JSONDecodeError:
-            body = {}
-        return body
