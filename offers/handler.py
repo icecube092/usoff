@@ -76,7 +76,8 @@ class Handler:
                     SELECT title, offer_text, created, user_id FROM offers WHERE id = %s
                     """ % offer_id
                 )
-                offer = self.db.cur.fetchone()
+                offer = list(self.db.cur.fetchone())
+                offer[2] = datetime.datetime.strftime(offer[2], "%Y-%m-%d %H:%M:%S")
             return response.json({"error": "", "offer": offer}, status=201)
         elif user_id:
             with self.db:
@@ -92,7 +93,12 @@ class Handler:
                     SELECT title, offer_text, created, user_id FROM offers WHERE user_id = %s
                     """ % user_id
                 )
-                offers = self.db.cur.fetchall()
-            return response.json({"error": "", "offers": offers}, status=201)
+                offers = list(self.db.cur.fetchall())
+                offers_to_send = []
+                for offer in offers:
+                    offer = list(offer)
+                    offer[2] = datetime.datetime.strftime(offer[2], "%Y-%m-%d %H:%M:%S")
+                    offers_to_send.append(offer)
+            return response.json({"error": "", "offers": offers_to_send}, status=201)
         else:
             return response.json({"error": "user_id or offer id required"}, status=400)

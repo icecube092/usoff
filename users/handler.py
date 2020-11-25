@@ -79,14 +79,14 @@ class Handler:
                 return response.json({"error": "user not found"}, status=401)
             else:
                 token = util.get_token(username, util.salt)
-                self.db.cur.execute(
-                    """
-                    INSERT INTO tokens (token, user_id)
-                    VALUES ('%s', '%s')
-                    ON CONFLICT (user_id) DO UPDATE
-                    SET token = '%s' WHERE user_id = '%s'
-                    """ % (token, user_data[0], token, user_data[0])
-                )
+                # self.db.cur.execute(
+                #     """
+                #     INSERT INTO tokens (token, user_id)
+                #     VALUES ('%s', '%s')
+                #     ON CONFLICT (user_id) DO UPDATE
+                #     SET token = '%s' WHERE user_id = '%s'
+                #     """ % (token, user_data[0], token, user_data[0])
+                # )
                 return response.json(
                     {"error": "", "token": token}, headers={"Authorization": token}, status=201)
 
