@@ -119,8 +119,10 @@ class Handler:
                     ORDER BY created DESC
                     """ % user_id
                 )
-                offers = []
-                for offer in self.db.cur.fetchall():
-                    offers.append([offer[0], offer[1],
-                                   datetime.datetime.strftime(offer[2], "%Y-%m-%d %H:%M:%S")])
-        return response.json({"error": "", "data": user_data, "offers": offers})
+                offers = self.db.cur.fetchall()
+                offers_to_send = []
+                for offer in offers:
+                    if offer:
+                        offers_to_send.append([offer[0], offer[1],
+                                       datetime.datetime.strftime(offer[2], "%Y-%m-%d %H:%M:%S")])
+        return response.json({"error": "", "data": user_data, "offers": offers_to_send})
