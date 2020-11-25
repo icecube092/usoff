@@ -5,7 +5,8 @@ import jwt
 from sanic.request import Request
 
 
-salt = "fkcxs213mzxl23lasd"
+salt = "fkcxs213mzxl23lasd"  # лучше создавать новый хэш при запуске
+jwt_life = 10  # сколько минут живет токен
 
 
 async def decode_body(body: Request.body) -> dict:
@@ -31,7 +32,7 @@ def get_token(username: str, salt: str) -> str:
     return jwt.encode({
         "username": username,
         "expired_at": datetime.datetime.strftime(
-            datetime.datetime.now() + datetime.timedelta(minutes=10), "%Y-%m-%d %H:%M:%S")
+            datetime.datetime.now() + datetime.timedelta(minutes=jwt_life), "%Y-%m-%d %H:%M:%S")
     },
         salt
     ).decode()
