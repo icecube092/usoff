@@ -97,8 +97,9 @@ class Handler:
                 offers_to_send = []
                 for offer in offers:
                     offer = list(offer)
-                    offer[2] = datetime.datetime.strftime(offer[2], "%Y-%m-%d %H:%M:%S")
-                    offers_to_send.append(offer)
+                    if offer:
+                        offer[2] = datetime.datetime.strftime(offer[2], "%Y-%m-%d %H:%M:%S")
+                        offers_to_send.append(offer)
             return response.json({"error": "", "offers": offers_to_send}, status=201)
         else:
             return response.json({"error": "user_id or offer id required"}, status=400)
